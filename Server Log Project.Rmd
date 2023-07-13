@@ -1,0 +1,122 @@
+---
+title: "Server Log Project"
+output: word_document
+date: "2023-06-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Introduction
+In this project, we analyze server log data from the year 2015 to gain insights into user activities and system usage. The dataset consists of two files: "vdi_serverlogs.csv" and "vdi_statsapps.csv". Our goal is to examine the log data, calculate key metrics, and visualize the results to provide a comprehensive overview of the system's usage patterns.
+
+## Data Preparation
+We begin by loading the necessary datasets: "vdi_serverlogs.csv" and "vdi_statsapps.csv". We merge these two datasets based on the common identifier, "VDI_ID," using the inner_join() function. Next, we convert the date and time variables to the POSIXct format to facilitate further analysis. To focus our analysis on relevant data, we filter the combined dataset to include only entries for the year 2015 and VDI machines with names starting with "CMU".
+
+```{r}
+## Loading data
+vdi_serverlogs<-read.csv("C:\\Users\\user\\Downloads\\vdi_serverlogs.csv")
+vdi_statsapps<-read.csv("C:\\Users\\user\\Downloads\\vdi_statsapps.csv")
+# Load required libraries
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+# Combine the log data from vdi_serverlogs and vdi_statsapps
+vdi_statsapps$VDI_ID<-as.numeric(vdi_statsapps$VDI_ID)
+combined_data <- inner_join(vdi_serverlogs, vdi_statsapps, by = "VDI_ID")
+
+```
+
+
+## Data Preparation
+We have began by loading the necessary datasets: "vdi_serverlogs.csv" and "vdi_statsapps.csv". We merge these two datasets based on the common identifier, "VDI_ID," using the inner_join() function. Next, we convert the date and time variables to the POSIXct format to facilitate further analysis. To focus our analysis on relevant data, we filter the combined dataset to include only entries for the year 2015 and VDI machines with names starting with "CMU".
+```{r}
+# Convert date and time variables to POSIXct format
+combined_data$logon_DTS <- as.POSIXct(combined_data$logon_DTS, format = "%m/%d/%y %H:%M")
+combined_data$logout_DTS <- as.POSIXct(combined_data$logout_DTS, format = "%m/%d/%y %H:%M")
+
+# Filter data for the year 2015 and VDI machines starting with "CMU"
+filtered_data <- combined_data %>%
+  filter(substr(comp_name, 1, 3) == "CMU", format(logon_DTS, "%Y") == "2015")
+
+# Calculate total number of users on the system
+total_users <- filtered_data %>%
+  distinct(userid) %>%
+  nrow()
+total_users
+
+```
+
+
+```{r}
+# Calculate average number of users per day
+average_users_per_day <- filtered_data %>%
+  group_by(date(logon_DTS)) %>%
+  summarise(num_users = n()) %>%
+  summarise(average = mean(num_users))
+average_users_per_day
+
+```
+```{r}
+# Calculate highest number of users per day
+highest_users_per_day <- filtered_data %>%
+  group_by(as.Date(logon_DTS)) %>%
+  summarise(num_users = n()) %>%
+  filter(num_users == max(num_users))
+highest_users_per_day
+```
+
+
+
+```{r}
+# Group I-L: Top 3 users by number of times logged in from off-site, top 3 applications by time run
+offsite_users_logged_in <- filtered_data %>%
+  filter(remote_od %in% c("Android", "iOS", "Linux", "Mac", "WinStore")) %>%
+  group_by(userid) %>%
+  summarise(times_logged_in = n()) %>%
+  top_n(3, times_logged_in) %>%
+  arrange(desc(times_logged_in))
+
+
+# Convert start and stop columns to POSIXct format
+filtered_data$start <- as.POSIXct(filtered_data$start, format = "%Y-%m-%d %H:%M:%S")
+filtered_data$stop <- as.POSIXct(filtered_data$stop, format = "%Y-%m-%d %H:%M:%S")
+
+# Calculate total_time for each app_name
+top_apps_by_time <- filtered_data %>%
+  group_by(app_name) %>%
+  summarise(total_time = sum(stop - start, na.rm = TRUE)) %>%
+  top_n(3, total_time) %>%
+  arrange(desc(total_time))
+```
+
+## Data Visualization
+To visually represent our findings, we create two bar plots: one displaying the top off-site users logged in and another showing the top applications by the time they were run.
+
+The first bar plot, titled "Top Off-Site Users by Logins," illustrates the top three users who logged in from off-site locations most frequently. Each bar represents a user, and its height represents the number of times they logged in. The bars are colored in blue.
+
+The second bar plot, titled "Top Applications by Time Run," displays the top three applications based on the total time they were run. The height of each bar represents the total time spent running the respective application, and the bars are colored in green.
+```{r}
+
+# Visualize the top off-site users logged in and top apps by time
+# Example code for creating bar plots
+ggplot(offsite_users_logged_in, aes(x = userid, y = times_logged_in)) +
+  geom_col(fill = "blue") +
+  labs(x = "User ID", y = "Times Logged In", title = "Top Off-Site Users by Logins") +
+  theme_minimal()
+
+ggplot(top_apps_by_time, aes(x = app_name, y = total_time)) +
+  geom_col(fill = "green") +
+  labs(x = "Application", y = "Total Time (minutes)", title = "Top Applications by Time Run") +
+  theme_minimal()
+
+```
+
+## Conclusion
+In conclusion, our analysis of the server log data from the year 2015 provides valuable insights into user activities and system usage. We determined the total number of users on the system, calculated the average number of users per day, and identified the day(s) with the highest number of users. Additionally, we visualized the top off-site users logged in and the top applications based on the time they were run.
+
+These findings can be useful for understanding user behavior, optimizing system performance, and making informed decisions related to resource allocation and system management.
+
+Further analysis and exploration of the data can be done to uncover additional patterns or anomalies that may contribute to a deeper understanding of the system's usage dynamics.
